@@ -9,10 +9,10 @@ This application has been developed with the assumption that all __"Student"__ e
 ## Login (Administrator)
 **Email:**  
 ```
-admin@admin.com
+admin
 ```
 
 **Password:**  
 ```
-admin
+admin123
 ```
