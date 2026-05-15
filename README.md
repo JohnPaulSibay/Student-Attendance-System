@@ -17,7 +17,7 @@ admin
 admin123
 ```
 <br/>
-my three System Integration repositories:
+## My three System Integration repositories:
 
 S1 PHP School Portal:
 https://github.com/JohnPaulSibay/school-information-management-system
