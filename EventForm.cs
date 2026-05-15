@@ -86,14 +86,28 @@ namespace StudentAttendanceSystem
 
         private void btnBack_Click(object sender, EventArgs e)
         {
-            DialogResult result = MessageBox.Show("Are you sure you want to close this page?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-            if (result == DialogResult.Yes)
+            if (LoginPage.currentLoginSession.UserRole == 1)
+            {
+                AdministratorPage adminPage = new AdministratorPage();
+                adminPage.Show();
+            }
+            else if (LoginPage.currentLoginSession.UserRole == 2)
             {
                 LecturerPage lecturerPage = new LecturerPage();
                 lecturerPage.Show();
-                this.Hide();
             }
+            else if (LoginPage.currentLoginSession.UserRole == 3)
+            {
+                StudentPage studentPage = new StudentPage();
+                studentPage.Show();
+            }
+            else
+            {
+                LoginPage loginPage = new LoginPage();
+                loginPage.Show();
+            }
+
+            this.Hide();
         }
 
         private void btnRefresh_Click(object sender, EventArgs e)

@@ -9,6 +9,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.IO;
+using System.Net.Http;
+using Newtonsoft.Json;
 
 namespace StudentAttendanceSystem
 {
@@ -17,18 +19,59 @@ namespace StudentAttendanceSystem
         private Connect connect;
         public static LoginSession loginSession;
         private AttendanceProcess attendanceProcess;
+
         public AttendanceForm()
         {
             InitializeComponent();
+
             this.FormClosing += new FormClosingEventHandler(AttendanceForm_FormClosing);
+            this.Load += AttendanceForm_Load;
 
             connect = new Connect();
             attendanceProcess = new AttendanceProcess();
+
             textBoxPresensiID.KeyPress += new KeyPressEventHandler(textBoxPresensiID_KeyPress);
-            ComboBoxStudentData();
+
             ComboBoxEventData();
             ComboBoxStatusData();
             refreshData();
+        }
+
+        private async void AttendanceForm_Load(object sender, EventArgs e)
+        {
+            await LoadStudentsFromApi();
+        }
+
+        private async Task LoadStudentsFromApi()
+        {
+            try
+            {
+                using (HttpClient client = new HttpClient())
+                {
+                    string url = "http://localhost:3000/api/students";
+                    string json = await client.GetStringAsync(url);
+
+                    StudentApiResponse response =
+                        JsonConvert.DeserializeObject<StudentApiResponse>(json);
+
+                    if (response == null || response.data == null || response.data.Count == 0)
+                    {
+                        MessageBox.Show("No students received from API.");
+                        return;
+                    }
+
+                    comboBoxStudent.DataSource = null;
+                    comboBoxStudent.DisplayMember = "FullName";
+                    comboBoxStudent.ValueMember = "student_id";
+                    comboBoxStudent.DataSource = response.data;
+
+                    MessageBox.Show("Students loaded from API: " + response.data.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to load students from API: " + ex.Message);
+            }
         }
 
         private void AttendanceForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -38,7 +81,6 @@ namespace StudentAttendanceSystem
 
         private void textBoxPresensiID_KeyPress(object sender, KeyPressEventArgs e)
         {
-            // Hanya izinkan input angka dan kontrol khusus (seperti Backspace)
             if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
             {
                 e.Handled = true;
@@ -47,7 +89,6 @@ namespace StudentAttendanceSystem
 
         private void textBoxPresensiID_TextChanged(object sender, EventArgs e)
         {
-
             if (!string.IsNullOrEmpty(textBoxPresensiID.Text) && !int.TryParse(textBoxPresensiID.Text, out _))
             {
                 MessageBox.Show("Please enter a valid Attendance ID.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -62,36 +103,26 @@ namespace StudentAttendanceSystem
             }
         }
 
-        private void ComboBoxStudentData()
-        {
-            DataTable studentTable = GetStudent();
-
-            comboBoxStudent.DisplayMember = "Nama";
-            comboBoxStudent.ValueMember = "UserID";
-
-            comboBoxStudent.DataSource = studentTable;
-        }
-
-        private DataTable GetStudent()
-        {
-            string queryStudent = "SELECT UserID, Nama FROM user WHERE Role = 3";
-            return connect.RetrieveData(queryStudent);
-        }
-
         private void ComboBoxEventData()
         {
             DataTable eventTable = GetEvent();
 
             comboBoxEvent.DisplayMember = "EventName";
             comboBoxEvent.ValueMember = "EventID";
-
             comboBoxEvent.DataSource = eventTable;
         }
 
         private DataTable GetEvent()
         {
             long currentUserID = LoginPage.currentLoginSession.UserID;
-            String queryEvent = $"SELECT e.EventID, e.EventName FROM matakuliah m JOIN event e ON (m.KodeMataKuliah = e.KodeMataKuliah) JOIN user u ON (m.UserID = u.UserID) WHERE m.UserID = {currentUserID}";
+
+            string queryEvent =
+                $"SELECT e.EventID, e.EventName " +
+                $"FROM matakuliah m " +
+                $"JOIN event e ON (m.KodeMataKuliah = e.KodeMataKuliah) " +
+                $"JOIN user u ON (m.UserID = u.UserID) " +
+                $"WHERE m.UserID = {currentUserID}";
+
             return connect.RetrieveData(queryEvent);
         }
 
@@ -101,7 +132,6 @@ namespace StudentAttendanceSystem
 
             comboBoxKehadiran.DisplayMember = "keterangan";
             comboBoxKehadiran.ValueMember = "Kehadiran";
-
             comboBoxKehadiran.DataSource = statusTable;
         }
 
@@ -115,48 +145,73 @@ namespace StudentAttendanceSystem
         {
             long currentUserID = LoginPage.currentLoginSession.UserID;
 
-            string query = $"SELECT p.PresensiID AS Attendance_ID, p.waktu AS Time, e.EventName AS Event_Name, u.Nama AS Student, s.keterangan AS Status " +
-                           $"FROM presensi p " +
-                           $"JOIN event e ON (p.EventID = e.EventID) " +
-                           $"JOIN user u ON (p.UserID = u.UserID) " +
-                           $"JOIN status s ON (p.Kehadiran = s.Kehadiran) " +
-                           $"JOIN matakuliah mk ON (e.KodeMataKuliah = mk.KodeMataKuliah) " +
-                           $"WHERE mk.UserID = {currentUserID} " + 
-                           $"ORDER BY Time DESC, e.EventID DESC, Event_Name ASC, Student ASC";
+            string query =
+                $"SELECT p.PresensiID AS Attendance_ID, p.waktu AS Time, " +
+                $"e.EventName AS Event_Name, u.Nama AS Student, s.keterangan AS Status " +
+                $"FROM presensi p " +
+                $"JOIN event e ON (p.EventID = e.EventID) " +
+                $"JOIN user u ON (p.UserID = u.UserID) " +
+                $"JOIN status s ON (p.Kehadiran = s.Kehadiran) " +
+                $"JOIN matakuliah mk ON (e.KodeMataKuliah = mk.KodeMataKuliah) " +
+                $"WHERE mk.UserID = {currentUserID} " +
+                $"ORDER BY Time DESC, e.EventID DESC, Event_Name ASC, Student ASC";
 
             DataTable attendanceData = connect.RetrieveData(query);
-
             dataGridViewAttendance.DataSource = attendanceData;
         }
 
-        private void btnRefresh_Click(object sender, EventArgs e)
+        private async void btnRefresh_Click(object sender, EventArgs e)
         {
+            await LoadStudentsFromApi();
             refreshData();
         }
 
         private void btnBack_Click(object sender, EventArgs e)
         {
-            DialogResult result = MessageBox.Show("Are you sure you want to close this page?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-            if (result == DialogResult.Yes)
+            if (LoginPage.currentLoginSession.UserRole == 1)
+            {
+                AdministratorPage adminPage = new AdministratorPage();
+                adminPage.Show();
+            }
+            else if (LoginPage.currentLoginSession.UserRole == 2)
             {
                 LecturerPage lecturerPage = new LecturerPage();
                 lecturerPage.Show();
-                this.Hide();
             }
+            else if (LoginPage.currentLoginSession.UserRole == 3)
+            {
+                StudentPage studentPage = new StudentPage();
+                studentPage.Show();
+            }
+            else
+            {
+                LoginPage loginPage = new LoginPage();
+                loginPage.Show();
+            }
+
+            this.Hide();
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
         {
-            DataRowView selectedStudent = (DataRowView)comboBoxStudent.SelectedItem;
-            long UserID = Convert.ToInt64(selectedStudent["UserID"]);
+            if (comboBoxStudent.SelectedItem == null)
+            {
+                MessageBox.Show("Please select a student.");
+                return;
+            }
+
+            Student selectedStudent = (Student)comboBoxStudent.SelectedItem;
+            long UserID = selectedStudent.student_id;
+
             DataRowView selectedEvent = (DataRowView)comboBoxEvent.SelectedItem;
             int EventID = Convert.ToInt32(selectedEvent["EventID"]);
+
             DataRowView selectedStatus = (DataRowView)comboBoxKehadiran.SelectedItem;
             int Status = Convert.ToInt32(selectedStatus["Kehadiran"]);
 
             if (AddAttendance(UserID, EventID, Status))
             {
+                MessageBox.Show("Attendance added successfully.");
             }
             else
             {
@@ -188,19 +243,26 @@ namespace StudentAttendanceSystem
                 return;
             }
 
+            if (comboBoxStudent.SelectedItem == null)
+            {
+                MessageBox.Show("Please select a student.");
+                return;
+            }
+
             int PresensiID = Convert.ToInt32(textBoxPresensiID.Text);
 
-            // Memeriksa apakah data presensi dengan PresensiID tertentu ada di database
             if (!IsPresensiIDExists(PresensiID))
             {
                 MessageBox.Show("Attendance ID does not found.");
                 return;
             }
 
-            DataRowView selectedStudent = (DataRowView)comboBoxStudent.SelectedItem;
-            long UserID = Convert.ToInt64(selectedStudent["UserID"]);
+            Student selectedStudent = (Student)comboBoxStudent.SelectedItem;
+            long UserID = selectedStudent.student_id;
+
             DataRowView selectedEvent = (DataRowView)comboBoxEvent.SelectedItem;
             int EventID = Convert.ToInt32(selectedEvent["EventID"]);
+
             DataRowView selectedStatus = (DataRowView)comboBoxKehadiran.SelectedItem;
             int Status = Convert.ToInt32(selectedStatus["Kehadiran"]);
 
@@ -218,7 +280,6 @@ namespace StudentAttendanceSystem
 
         private bool IsPresensiIDExists(int PresensiID)
         {
-            // Pengecekan apakah PresensiID ada di database
             string query = $"SELECT COUNT(*) FROM presensi WHERE PresensiID = {PresensiID}";
             int count = Convert.ToInt32(connect.ExecuteScalar(query));
 
@@ -241,6 +302,12 @@ namespace StudentAttendanceSystem
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
+            if (string.IsNullOrWhiteSpace(textBoxPresensiID.Text))
+            {
+                MessageBox.Show("Attendance ID cannot be empty for delete.");
+                return;
+            }
+
             int PresensiID = Convert.ToInt32(textBoxPresensiID.Text);
 
             if (IsPresensiIDExists(PresensiID))
@@ -282,7 +349,6 @@ namespace StudentAttendanceSystem
         {
             DataTable dt = (DataTable)dataGridViewAttendance.DataSource;
 
-            // Periksa apakah ada data presensi sebelum memulai proses ekspor
             if (dt.Rows.Count > 0)
             {
                 ExportToCSV(dt);

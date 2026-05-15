@@ -25,10 +25,20 @@ namespace StudentAttendanceSystem
 
         private void btnLogOut_Click(object sender, EventArgs e)
         {
-            DialogResult result = MessageBox.Show("Are you sure you want to log out?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            DialogResult result = MessageBox.Show(
+                "Are you sure you want to log out?",
+                "Confirm",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question
+            );
 
             if (result == DialogResult.Yes)
             {
+                if (LoginPage.currentLoginSession != null)
+                {
+                    LoginPage.currentLoginSession.ClearLoginSession();
+                }
+
                 LoginPage loginPage = new LoginPage();
                 loginPage.Show();
                 this.Hide();

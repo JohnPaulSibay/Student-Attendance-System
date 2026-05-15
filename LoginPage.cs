@@ -1,30 +1,19 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Linq;
+using System.Net.Http;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using MySql.Data.MySqlClient;
-using System.Security.Cryptography;
+using Newtonsoft.Json;
 
 namespace StudentAttendanceSystem
 {
     public partial class LoginPage : Form
     {
-        private Connect connect;
-        private UserProcess userProcess;
         public static LoginSession currentLoginSession;
-
 
         public LoginPage()
         {
             InitializeComponent();
-            connect = new Connect();
-            userProcess = new UserProcess();
-
             this.FormClosing += LoginPage_FormClosing;
         }
 
@@ -33,98 +22,120 @@ namespace StudentAttendanceSystem
             Application.Exit();
         }
 
-        private void btnLogin_Click(object sender, EventArgs e)
+        private async void btnLogin_Click(object sender, EventArgs e)
         {
-            string email = textBoxEmail.Text;
-            string password = textBoxPassword.Text;
-
-            if (LoginUser(email, password))
+            try
             {
-                long userID = userProcess.GetUserID(email);
-                int role = GetUserRole(email);
+                string username = textBoxEmail.Text.Trim();
+                string password = textBoxPassword.Text.Trim();
 
-                currentLoginSession = new LoginSession(email, userProcess.GetUserRole(email), userID);
-                OpenHomePage(role);
-                this.Hide();
+                if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+                {
+                    MessageBox.Show("Please enter username and password.");
+                    return;
+                }
+
+                var loginData = new
+                {
+                    username = username,
+                    password = password
+                };
+
+                using (HttpClient client = new HttpClient())
+                {
+                    string json = JsonConvert.SerializeObject(loginData);
+                    StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    HttpResponseMessage response = await client.PostAsync(
+                        "http://localhost:3000/api/login",
+                        content
+                    );
+
+                    string result = await response.Content.ReadAsStringAsync();
+
+                    LoginResponse loginResponse =
+                        JsonConvert.DeserializeObject<LoginResponse>(result);
+
+                    if (response.IsSuccessStatusCode && loginResponse.status == "success")
+                    {
+                        int roleNumber = ConvertRoleToNumber(loginResponse.user.role);
+
+                        currentLoginSession = new LoginSession(
+                            loginResponse.user.username,
+                            roleNumber,
+                            loginResponse.user.user_id,
+                            loginResponse.user.student_id,
+                            loginResponse.user.teacher_id
+                        );
+
+                        OpenHomePage(loginResponse.user.role);
+                        this.Hide();
+                    }
+                    else
+                    {
+                        MessageBox.Show(loginResponse.message);
+                    }
+                }
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show("Login failed. Check your email and password.");
+                MessageBox.Show("Login error: " + ex.Message);
             }
         }
 
-        private bool LoginUser(string email, string password)
+        private int ConvertRoleToNumber(string role)
         {
-            bool isValid = userProcess.ValidateUser(email, password);
-
-            return isValid;
-        }
-
-        private int GetUserRole(string email)
-        {
-            string query = $"SELECT Role FROM user WHERE email = '{email}'";
-            DataTable result = connect.RetrieveData(query);
-
-            if (result.Rows.Count > 0)
-            {
-                return Convert.ToInt32(result.Rows[0]["Role"]);
-            }
-
+            if (role == "Administrator") return 1;
+            if (role == "Lecturer") return 2;
+            if (role == "Student") return 3;
             return 0;
         }
 
-        private void OpenHomePage(int Role)
+        private void OpenHomePage(string role)
         {
-            switch (Role)
-            {
-                case 1: // Administrator
-                    AdministratorPage adminPage = new AdministratorPage();
-                    adminPage.Show();
-                    break;
-
-                case 2: // Dosen
-                    LecturerPage lecturerPage = new LecturerPage();
-                    lecturerPage.Show();
-                    break;
-
-                case 3: // Mahasiswa
-                    StudentPage studentPage = new StudentPage();
-                    studentPage.Show();
-                    break;
-
-                default:
-                    MessageBox.Show("Role does not valid.");
-                    break;
-            }
-
-            this.Hide();
+            if (role == "Administrator")
+                new AdministratorPage().Show();
+            else if (role == "Lecturer")
+                new LecturerPage().Show();
+            else if (role == "Student")
+                new StudentPage().Show();
         }
 
         private void textBoxPassword_TextChanged(object sender, EventArgs e)
         {
-            textBoxPassword.ForeColor = Color.Black;
             textBoxPassword.PasswordChar = '●';
         }
     }
 
     public class LoginSession
     {
-        public long UserID { get; private set; }
-        public string Email { get; private set; }
-        public int UserRole { get; private set; }
+        public int UserID { get; private set; }
+        public string Username { get; private set; }
 
-        public LoginSession(string email, int userRole, long userID)
+        // ✅ ADD THIS (alias for old code)
+        public string Email { get { return Username; } }
+
+        public int UserRole { get; private set; }
+        public int? StudentID { get; private set; }
+        public int? TeacherID { get; private set; }
+
+        public LoginSession(string username, int role, int userId, int? studentId, int? teacherId)
         {
-            Email = email;
-            UserRole = userRole;
-            UserID = userID;
+            Username = username;
+            UserRole = role;
+            UserID = userId;
+            StudentID = studentId;
+            TeacherID = teacherId;
         }
 
+        // ✅ ADD THIS BACK
         public void ClearLoginSession()
         {
-            Email = null;
+            Username = null;
             UserRole = 0;
             UserID = 0;
+            StudentID = null;
+            TeacherID = null;
         }
     }
 }

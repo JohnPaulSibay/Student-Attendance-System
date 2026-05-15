@@ -1,30 +1,25 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
+using System.Net.Http;
 using System.Text;
-using System.Threading.Tasks;
+using System.Linq;
 using System.Windows.Forms;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using Newtonsoft.Json;
 
 namespace StudentAttendanceSystem
 {
     public partial class EventPage : Form
     {
-        private Connect connect;
-        private EventProcess eventProcess;
+        private int selectedEventId = 0;
+
         public EventPage()
         {
             InitializeComponent();
-            this.FormClosing += new FormClosingEventHandler(EventPage_FormClosing);
 
-            connect = new Connect();
-            eventProcess = new EventProcess();
-            textBoxEventID.KeyPress += new KeyPressEventHandler(textBoxEventID_KeyPress);
-            ComboBoxMatKulNameData();
-            refreshData();
+            this.FormClosing += EventPage_FormClosing;
+            dataGridViewEvent.CellClick += dataGridViewEvent_CellClick;
+
+            LoadCoursesFromApi();
+            RefreshDataFromApi();
         }
 
         private void EventPage_FormClosing(object sender, FormClosingEventArgs e)
@@ -32,9 +27,294 @@ namespace StudentAttendanceSystem
             Application.Exit();
         }
 
+        private async void LoadCoursesFromApi()
+        {
+            try
+            {
+                using (HttpClient client = new HttpClient())
+                {
+                    string json = await client.GetStringAsync("http://localhost:3000/api/courses");
+
+                    CourseApiResponse response =
+                        JsonConvert.DeserializeObject<CourseApiResponse>(json);
+
+                    var courses = response.data;
+
+                    if (LoginPage.currentLoginSession != null &&
+                        LoginPage.currentLoginSession.UserRole == 2 &&
+                        LoginPage.currentLoginSession.TeacherID != null)
+                    {
+                        courses = courses
+                            .Where(x => x.teacher_id == LoginPage.currentLoginSession.TeacherID)
+                            .ToList();
+                    }
+
+                    comboBoxMatKulName.DataSource = null;
+                    comboBoxMatKulName.DisplayMember = "course_name";
+                    comboBoxMatKulName.ValueMember = "course_id";
+                    comboBoxMatKulName.DataSource = courses;
+                    comboBoxMatKulName.SelectedIndex = -1;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to load courses: " + ex.Message);
+            }
+        }
+
+        private async void RefreshDataFromApi()
+        {
+            try
+            {
+                using (HttpClient client = new HttpClient())
+                {
+                    string json = await client.GetStringAsync("http://localhost:3000/api/events");
+
+                    EventApiResponse response =
+                        JsonConvert.DeserializeObject<EventApiResponse>(json);
+
+                    var events = response.data;
+
+                    if (LoginPage.currentLoginSession != null &&
+                        LoginPage.currentLoginSession.UserRole == 2 &&
+                        LoginPage.currentLoginSession.TeacherID != null)
+                    {
+                        events = events
+                            .Where(x => x.teacher_id == LoginPage.currentLoginSession.TeacherID)
+                            .ToList();
+                    }
+
+                    dataGridViewEvent.DataSource = events;
+                    dataGridViewEvent.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+                    dataGridViewEvent.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+                    dataGridViewEvent.MultiSelect = false;
+                    dataGridViewEvent.ReadOnly = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to load events: " + ex.Message);
+            }
+        }
+
+        private void dataGridViewEvent_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            DataGridViewRow row = dataGridViewEvent.Rows[e.RowIndex];
+
+            selectedEventId = Convert.ToInt32(row.Cells["event_id"].Value);
+            textBoxEventID.Text = selectedEventId.ToString();
+            textBoxEvent.Text = row.Cells["event_name"].Value.ToString();
+            textBoxRuang.Text = row.Cells["room"].Value == null ? "" : row.Cells["room"].Value.ToString();
+
+            if (row.Cells["course_id"].Value != null && row.Cells["course_id"].Value != DBNull.Value)
+                comboBoxMatKulName.SelectedValue = Convert.ToInt32(row.Cells["course_id"].Value);
+
+            if (row.Cells["event_date"].Value != null)
+            {
+                DateTime dateValue;
+                if (DateTime.TryParse(row.Cells["event_date"].Value.ToString(), out dateValue))
+                {
+                    dateTimePickerTanggal.Value = dateValue;
+                }
+            }
+        }
+
+        private async void btnAdd_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (comboBoxMatKulName.SelectedItem == null)
+                {
+                    MessageBox.Show("Select course first.");
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(textBoxEvent.Text))
+                {
+                    MessageBox.Show("Event name is required.");
+                    return;
+                }
+
+                var eventData = new
+                {
+                    event_name = textBoxEvent.Text.Trim(),
+                    course_id = Convert.ToInt32(comboBoxMatKulName.SelectedValue),
+                    room = textBoxRuang.Text.Trim(),
+                    event_date = dateTimePickerTanggal.Value.ToString("yyyy-MM-dd")
+                };
+
+                using (HttpClient client = new HttpClient())
+                {
+                    string json = JsonConvert.SerializeObject(eventData);
+                    StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    HttpResponseMessage response = await client.PostAsync(
+                        "http://localhost:3000/api/events",
+                        content
+                    );
+
+                    string result = await response.Content.ReadAsStringAsync();
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        MessageBox.Show("Event added!");
+                        ClearInputs();
+                        RefreshDataFromApi();
+                    }
+                    else
+                    {
+                        MessageBox.Show("Add failed: " + result);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error adding event: " + ex.Message);
+            }
+        }
+
+        private async void btnUpdate_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (selectedEventId == 0)
+                {
+                    MessageBox.Show("Select event first.");
+                    return;
+                }
+
+                if (comboBoxMatKulName.SelectedItem == null)
+                {
+                    MessageBox.Show("Select course first.");
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(textBoxEvent.Text))
+                {
+                    MessageBox.Show("Event name is required.");
+                    return;
+                }
+
+                var eventData = new
+                {
+                    event_name = textBoxEvent.Text.Trim(),
+                    course_id = Convert.ToInt32(comboBoxMatKulName.SelectedValue),
+                    room = textBoxRuang.Text.Trim(),
+                    event_date = dateTimePickerTanggal.Value.ToString("yyyy-MM-dd")
+                };
+
+                using (HttpClient client = new HttpClient())
+                {
+                    string json = JsonConvert.SerializeObject(eventData);
+                    StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    HttpResponseMessage response = await client.PutAsync(
+                        $"http://localhost:3000/api/events/{selectedEventId}",
+                        content
+                    );
+
+                    string result = await response.Content.ReadAsStringAsync();
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        MessageBox.Show("Event updated!");
+                        ClearInputs();
+                        RefreshDataFromApi();
+                    }
+                    else
+                    {
+                        MessageBox.Show("Update failed: " + result);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error updating event: " + ex.Message);
+            }
+        }
+
+        private async void btnDelete_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (selectedEventId == 0)
+                {
+                    MessageBox.Show("Select event first.");
+                    return;
+                }
+
+                DialogResult confirm = MessageBox.Show(
+                    "Are you sure you want to delete this event?",
+                    "Confirm Delete",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning
+                );
+
+                if (confirm != DialogResult.Yes)
+                    return;
+
+                using (HttpClient client = new HttpClient())
+                {
+                    HttpResponseMessage response = await client.DeleteAsync(
+                        $"http://localhost:3000/api/events/{selectedEventId}"
+                    );
+
+                    string result = await response.Content.ReadAsStringAsync();
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        MessageBox.Show("Event deleted!");
+                        ClearInputs();
+                        RefreshDataFromApi();
+                    }
+                    else
+                    {
+                        MessageBox.Show("Delete failed: " + result);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error deleting event: " + ex.Message);
+            }
+        }
+
+        private void btnBack_Click(object sender, EventArgs e)
+        {
+            if (LoginPage.currentLoginSession.UserRole == 1)
+                new AdministratorPage().Show();
+            else if (LoginPage.currentLoginSession.UserRole == 2)
+                new LecturerPage().Show();
+            else if (LoginPage.currentLoginSession.UserRole == 3)
+                new StudentPage().Show();
+            else
+                new LoginPage().Show();
+
+            this.Hide();
+        }
+
+        private void btnRefresh_Click(object sender, EventArgs e)
+        {
+            ClearInputs();
+            LoadCoursesFromApi();
+            RefreshDataFromApi();
+        }
+
+        private void ClearInputs()
+        {
+            selectedEventId = 0;
+            textBoxEventID.Clear();
+            textBoxEvent.Clear();
+            textBoxRuang.Clear();
+
+            if (comboBoxMatKulName.Items.Count > 0)
+                comboBoxMatKulName.SelectedIndex = -1;
+        }
+
         private void textBoxEventID_KeyPress(object sender, KeyPressEventArgs e)
         {
-            // Hanya izinkan input angka dan kontrol khusus (seperti Backspace)
             if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
             {
                 e.Handled = true;
@@ -43,200 +323,12 @@ namespace StudentAttendanceSystem
 
         private void textBoxEventID_TextChanged(object sender, EventArgs e)
         {
-
             if (!string.IsNullOrEmpty(textBoxEventID.Text) && !int.TryParse(textBoxEventID.Text, out _))
             {
-                MessageBox.Show("Please enter a valid Event ID.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Please enter a valid Event ID.");
                 textBoxEventID.Text = string.Empty;
             }
-
-            if (textBoxEventID.Text.Length > 8)
-            {
-                MessageBox.Show("Event ID should be limited to 8 digits.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                textBoxEventID.Text = textBoxEventID.Text.Substring(0, 8);
-                textBoxEventID.SelectionStart = textBoxEventID.Text.Length;
-            }
-        }
-
-        private void ComboBoxMatKulNameData()
-        {
-            DataTable matkulTable = GetMatKul();
-
-            comboBoxMatKulName.DisplayMember = "NamaMataKuliah";
-            comboBoxMatKulName.ValueMember = "KodeMataKuliah";
-
-            comboBoxMatKulName.DataSource = matkulTable;
-        }
-
-        private DataTable GetMatKul()
-        {
-            string query = "SELECT KodeMataKuliah, NamaMataKuliah FROM matakuliah";
-            return connect.RetrieveData(query);
-        }
-
-        private void refreshData()
-        {
-            string query = "SELECT e.EventID AS Event_ID, e.EventName AS Event_Name, m.NamaMataKuliah AS Course, e.venue AS Room, e.Tanggal AS Date FROM event e JOIN matakuliah m ON (e.KodeMataKuliah = m.KodeMataKuliah) ORDER BY Date DESC, Event_Name ASC, Course ASC";
-            DataTable eventData = connect.RetrieveData(query);
-
-            dataGridViewEvent.DataSource = eventData;
-        }
-
-        private void btnBack_Click(object sender, EventArgs e)
-        {
-            DialogResult result = MessageBox.Show("Are you sure you want to close this page?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-            if (result == DialogResult.Yes)
-            {
-                AdministratorPage adminPage = new AdministratorPage();
-                adminPage.Show();
-                this.Hide();
-            }
-        }
-
-        private void btnAdd_Click(object sender, EventArgs e)
-        {
-            string Event = textBoxEvent.Text;
-            DataRowView selectedMatKul = (DataRowView)comboBoxMatKulName.SelectedItem;
-            string kodeMK = Convert.ToString(selectedMatKul["KodeMataKuliah"]);
-            string Ruang = textBoxRuang.Text;
-            DateTime selectedTanggal = dateTimePickerTanggal.Value;
-
-            if (AddEvent(Event, kodeMK, Ruang, selectedTanggal))
-            {
-                textBoxEvent.Clear();
-                textBoxRuang.Clear();
-            }
-            else
-            {
-                MessageBox.Show("Event failed to be added.");
-            }
-
-            refreshData();
-        }
-
-        private bool AddEvent(string Event, string kodeMK, string Ruang, DateTime selectedTanggal)
-        {
-            try
-            {
-                eventProcess.InputEvent(Event, kodeMK, Ruang, selectedTanggal);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error: " + ex.Message);
-                return false;
-            }
-        }
-
-        private void btnUpdate_Click(object sender, EventArgs e)
-        {
-            if (string.IsNullOrWhiteSpace(textBoxEventID.Text))
-            {
-                MessageBox.Show("Event ID cannot be empty for update.");
-                return;
-            }
-
-            int EventID = Convert.ToInt32(textBoxEventID.Text);
-            string Event = textBoxEvent.Text;
-            DataRowView selectedMatKul = (DataRowView)comboBoxMatKulName.SelectedItem;
-            string kodeMK = Convert.ToString(selectedMatKul["KodeMataKuliah"]);
-            string Ruang = textBoxRuang.Text;
-            DateTime selectedTanggal = dateTimePickerTanggal.Value;
-
-            if (EditEvent(EventID, Event, kodeMK, Ruang, selectedTanggal))
-            {
-                textBoxEventID.Clear();
-                textBoxEvent.Clear();
-                textBoxRuang.Clear();
-            }
-            else
-            {
-                MessageBox.Show("Event failed to be edited.");
-            }
-
-            refreshData();
-        }
-
-        private bool EditEvent(int EventID, string Event, string kodeMK, string Ruang, DateTime selectedTanggal)
-        {
-            try
-            {
-                // Periksa apakah event dengan EventID tertentu ada di database
-                if (IsEventExists(EventID))
-                {
-                    eventProcess.UpdateEvent(EventID, Event, kodeMK, Ruang, selectedTanggal);
-                    return true;
-                }
-                else
-                {
-                    MessageBox.Show("Event ID does not found.");
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error: " + ex.Message);
-                return false;
-            }
-        }
-
-        private bool IsEventExists(int EventID)
-        {
-            // Lakukan pengecekan apakah EventID ada di database
-            string query = $"SELECT COUNT(*) FROM event WHERE EventID = {EventID}";
-            int count = Convert.ToInt32(connect.ExecuteScalar(query));
-
-            return count > 0;
-        }
-
-        private void btnDelete_Click(object sender, EventArgs e)
-        {
-            if (string.IsNullOrWhiteSpace(textBoxEventID.Text))
-            {
-                MessageBox.Show("Event ID cannot be empty for delete.");
-                return;
-            }
-
-            int EventID = Convert.ToInt32(textBoxEventID.Text);
-            long DosenID = LoginPage.currentLoginSession.UserID;
-
-            if (IsEventExists(EventID))
-            {
-                if (RemoveEvent(EventID, DosenID))
-                {
-                    textBoxEventID.Clear();
-                }
-                else
-                {
-                    MessageBox.Show("Event failed to be deleted.");
-                }
-            }
-            else
-            {
-                MessageBox.Show("Event ID does not found.");
-            }
-
-        refreshData();
-        }
-
-        private bool RemoveEvent(int EventID, long DosenID)
-        {
-            try
-            {
-                eventProcess.RemoveEvent(EventID, DosenID);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error: " + ex.Message);
-                return false;
-            }
-        }
-
-        private void btnRefresh_Click(object sender, EventArgs e)
-        {
-            refreshData();
         }
     }
 }
+

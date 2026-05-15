@@ -44,6 +44,10 @@
             this.textBoxName = new System.Windows.Forms.TextBox();
             this.btnBack = new System.Windows.Forms.Button();
             this.comboBoxRole = new System.Windows.Forms.ComboBox();
+            this.lblStudentLink = new System.Windows.Forms.Label();
+            this.comboBoxStudentLink = new System.Windows.Forms.ComboBox();
+            this.lblLecturerLink = new System.Windows.Forms.Label();
+            this.comboBoxLecturerLink = new System.Windows.Forms.ComboBox();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridViewUser)).BeginInit();
             this.SuspendLayout();
             // 
@@ -81,12 +85,12 @@
             // 
             this.dataGridViewUser.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
             this.dataGridViewUser.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dataGridViewUser.Location = new System.Drawing.Point(12, 309);
+            this.dataGridViewUser.Location = new System.Drawing.Point(12, 410);
             this.dataGridViewUser.Name = "dataGridViewUser";
             this.dataGridViewUser.ReadOnly = true;
             this.dataGridViewUser.RowHeadersWidth = 62;
             this.dataGridViewUser.RowTemplate.Height = 28;
-            this.dataGridViewUser.Size = new System.Drawing.Size(954, 323);
+            this.dataGridViewUser.Size = new System.Drawing.Size(954, 300);
             this.dataGridViewUser.TabIndex = 29;
             // 
             // btnRefresh
@@ -218,12 +222,56 @@
             this.comboBoxRole.Size = new System.Drawing.Size(381, 37);
             this.comboBoxRole.TabIndex = 5;
             // 
+            // 
+            // lblStudentLink
+            // 
+            this.lblStudentLink.AutoSize = true;
+            this.lblStudentLink.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblStudentLink.Location = new System.Drawing.Point(7, 314);
+            this.lblStudentLink.Name = "lblStudentLink";
+            this.lblStudentLink.Size = new System.Drawing.Size(167, 29);
+            this.lblStudentLink.TabIndex = 33;
+            this.lblStudentLink.Text = "Student Link :";
+            // 
+            // comboBoxStudentLink
+            // 
+            this.comboBoxStudentLink.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxStudentLink.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.comboBoxStudentLink.FormattingEnabled = true;
+            this.comboBoxStudentLink.Location = new System.Drawing.Point(198, 311);
+            this.comboBoxStudentLink.Name = "comboBoxStudentLink";
+            this.comboBoxStudentLink.Size = new System.Drawing.Size(381, 37);
+            this.comboBoxStudentLink.TabIndex = 11;
+            // 
+            // lblLecturerLink
+            // 
+            this.lblLecturerLink.AutoSize = true;
+            this.lblLecturerLink.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblLecturerLink.Location = new System.Drawing.Point(7, 359);
+            this.lblLecturerLink.Name = "lblLecturerLink";
+            this.lblLecturerLink.Size = new System.Drawing.Size(169, 29);
+            this.lblLecturerLink.TabIndex = 34;
+            this.lblLecturerLink.Text = "Lecturer Link :";
+            // 
+            // comboBoxLecturerLink
+            // 
+            this.comboBoxLecturerLink.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxLecturerLink.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.comboBoxLecturerLink.FormattingEnabled = true;
+            this.comboBoxLecturerLink.Location = new System.Drawing.Point(198, 356);
+            this.comboBoxLecturerLink.Name = "comboBoxLecturerLink";
+            this.comboBoxLecturerLink.Size = new System.Drawing.Size(381, 37);
+            this.comboBoxLecturerLink.TabIndex = 12;
             // UserPage
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.AliceBlue;
-            this.ClientSize = new System.Drawing.Size(978, 644);
+            this.ClientSize = new System.Drawing.Size(978, 730);
+            this.Controls.Add(this.comboBoxLecturerLink);
+            this.Controls.Add(this.lblLecturerLink);
+            this.Controls.Add(this.comboBoxStudentLink);
+            this.Controls.Add(this.lblStudentLink);
             this.Controls.Add(this.comboBoxRole);
             this.Controls.Add(this.btnBack);
             this.Controls.Add(this.textBoxUserId);
@@ -241,8 +289,8 @@
             this.Controls.Add(this.lblName);
             this.Controls.Add(this.textBoxName);
             this.MaximizeBox = false;
-            this.MaximumSize = new System.Drawing.Size(1000, 700);
-            this.MinimumSize = new System.Drawing.Size(1000, 700);
+            this.MaximumSize = new System.Drawing.Size(1000, 790);
+            this.MinimumSize = new System.Drawing.Size(1000, 790);
             this.Name = "UserPage";
             this.Text = "User";
             ((System.ComponentModel.ISupportInitialize)(this.dataGridViewUser)).EndInit();
@@ -269,5 +317,9 @@
         private System.Windows.Forms.TextBox textBoxName;
         private System.Windows.Forms.Button btnBack;
         private System.Windows.Forms.ComboBox comboBoxRole;
+        private System.Windows.Forms.Label lblStudentLink;
+        private System.Windows.Forms.ComboBox comboBoxStudentLink;
+        private System.Windows.Forms.Label lblLecturerLink;
+        private System.Windows.Forms.ComboBox comboBoxLecturerLink;
     }
 }
